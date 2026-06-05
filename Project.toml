@@ -1,0 +1,12 @@
+name = "dn3"
+uuid = "9358f9d5-56f6-44a6-a9f7-0e62e6258507"
+version = "0.1.0"
+authors = ["obi-san <ozbej.kresal@gmail.com>"]
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Weave = "44d3d7a6-8a23-5bf8-98c5-b353f8df5ec9"
+
+[compat]
+LinearAlgebra = "1.12.0"
+Weave = "0.10.12"

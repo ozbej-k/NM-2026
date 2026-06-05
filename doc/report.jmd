@@ -1,0 +1,155 @@
+---
+title: "Mathematical Pendulum"
+author: "Ožbej Kresal"
+date: "June 2026"
+---
+
+In this exercise we implemented the Dormand-Prince 5 (DOPRI5) method for solving ordinary differential equations and applied it to the mathematical pendulum. We first transformed the second-order pendulum equation into an equivalent first-order system and then used our implementation to compute the pendulum's motion for different initial conditions. Finally, we compared the obtained solutions with the harmonic pendulum approximation and investigated the dependence of the oscillation period on the pendulum's energy.
+
+# Mathematical pendulum
+The angular displacement $\theta(t)$ (in radians) for the undamped oscillation of a weight suspended on a string is described by the second order differential equation
+
+$$
+\frac{g}{l} \sin(\theta(t)) + \ddot{\theta}(t) = 0, \quad
+\theta(0) = \theta_0, \;\; \dot{\theta}(0) = \dot{\theta}_0,
+$$
+
+where $g$ is the gravitational acceleration and $l$ is the length of the pendulum.
+
+## First order system conversion
+The second-order differential equation can be converted to a first-order system by introducing the angular velocity $\omega(t) = \dot{\theta}(t).$
+
+Using this substitution, the original equation can be rewritten as
+
+$$
+\dot{\theta}(t) = \omega(t),
+$$
+
+$$
+\dot{\omega}(t) = -\frac{g}{l}\sin(\theta(t)).
+$$
+
+Or written in vector form as
+
+$$
+\begin{bmatrix}
+\dot{\theta(t)} \\
+\dot{\omega(t)}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\omega(t) \\
+-\frac{g}{l}\sin(\theta(t))
+\end{bmatrix}.
+$$
+
+# Harmonic pendulum
+We will compare our mathematical pendulum results with the harmonic pendulum described by the following differential equation:
+
+$$
+\frac{g}{l} \theta(t) + \ddot{\theta}(t) = 0.
+$$
+
+Where we will use the analytical solution:
+
+$$
+\theta(t)
+\theta_0 \cos(\omega_0 t)
++
+\frac{\dot{\theta}_0}{\omega_0}
+\sin(\omega_0 t).
+$$
+
+where $\omega_0 = \sqrt{\frac{g}{l}}$.
+
+# DOPRI5 method
+To solve the first-order system describing the mathematical pendulum problem, we use the DOPRI5 method. The method is a member of the Runge-Kutta family of ODE solvers. It uses the difference between a fifth-order and an embedded fourth-order approximation to estimate the local error and adapt the time step accordingly.
+
+For a system
+
+$$
+u'(t) = f(t,u(t)),
+$$
+
+the method computes several intermediate stage values $k_i$ and combines them to obtain a fifth-order approximation
+
+$$
+u_{n+1}^{(5)} = u_n + h\sum_i b_i k_i.
+$$
+
+An embedded fourth-order approximation is computed simultaneously. The difference between the two approximations provides an estimate of the local error, which is used to accept or reject the step and determine the step size for the next iteration.
+
+# Demonstration
+To compare the mathematical and harmonic pendulums we first plot their oscillation for a given initial angular displacement $\theta_0$.
+
+The following plot shows their oscillation for $\theta_0 = \pi/10$, showing that with smaller initial angular displacement the plots are nearly identical.
+```julia, echo=false
+using dn3, Plots
+
+# plot mathematical vs harmonic pendulum oscilation
+g = 9.81; l = 1.0
+theta0 = pi/10
+p = PendulumParams(g,l)
+problem = InitialProblem(pendulum_1st_order, [theta0,0.0], (0.0,20.0), p)
+sol = solve(problem, DOPRI5(1e-3, 1e-13, 1e-13))
+
+function harmonic_theta(t, theta0, thetadot0, g, l)
+    omega0 = sqrt(g / l)
+    return theta0 * cos(omega0 * t) + (thetadot0 / omega0) * sin(omega0 * t)
+end
+
+theta_math = [ui[1] for ui in sol.u]
+theta_harm = [harmonic_theta(t, theta0, 0.0, g, l) for t in sol.t]
+
+plt = plot(sol.t, theta_math, lw = 2, label = "Mathematical")
+plot!(sol.t, theta_harm, lw = 2, linestyle = :dash, label = "Harmonic")
+```
+
+The following plot shows their oscillation for $\theta_0 = 3\pi/4$, showing that for larger and larger initial angular displacement the two different pendulums diverge more and more.
+```julia, echo=false
+# plot mathematical vs harmonic pendulum oscilation
+g = 9.81; l = 1.0
+theta0 = 3pi/4
+p = PendulumParams(g,l)
+problem = InitialProblem(pendulum_1st_order, [theta0,0.0], (0.0,20.0), p)
+sol = solve(problem, DOPRI5(1e-3, 1e-13, 1e-13))
+
+function harmonic_theta(t, theta0, thetadot0, g, l)
+    omega0 = sqrt(g / l)
+    return theta0 * cos(omega0 * t) + (thetadot0 / omega0) * sin(omega0 * t)
+end
+
+theta_math = [ui[1] for ui in sol.u]
+theta_harm = [harmonic_theta(t, theta0, 0.0, g, l) for t in sol.t]
+
+plt = plot(sol.t, theta_math, lw = 2, label = "Mathematical")
+plot!(sol.t, theta_harm, lw = 2, linestyle = :dash, label = "Harmonic")
+```
+
+## Oscilation period and pendulum energy
+To get the mathematical pendulum energy for a given initial angular displacement we calculated enough time steps for the solution to contain at least two different crossings where the angular displacement was zero and took their difference. While for the harmonic pendulum we took the constant analytical solution: $2\pi * \sqrt(l / g)$, where $l$ is the pendulum length and $g$ the force of gravity.
+
+The following graph plots the relationship between the oscilation period and pendulum energy, showing that for a harmonic pendulum, the oscillation period is independent of initial conditions, while in a mathematical pendulum, the oscillation period increases as the energy of the pendulum (initial displacement) increases.
+```julia, echo=false
+# plot mathematical vs harmonic pendulum energy
+energies = Float64[]; periods = Float64[]
+for theta0 in range(0.01, pi - 0.1, length=20)
+    _p = PendulumParams(g, l)
+    _problem = InitialProblem(pendulum_1st_order, [theta0, 0.0], (0.0, 20.0), _p)
+    _sol = solve(_problem, DOPRI5(1e-3, 1e-13, 1e-13))
+    push!(energies, math_pendulum_energy(theta0, g, l))
+    push!(periods, period_from_solution(_sol))
+end
+
+harmonic_period(g, l) = 2pi * sqrt(l / g)
+
+plot(energies, periods, xlabel="Energy", ylabel="Oscilation period", lw=2, grid=true)
+hline!([harmonic_period(g, l)], linestyle=:dash, label="Harmonic period", lw=2)    
+```
+
+
+
+
+
+
+
